@@ -8,6 +8,8 @@ import seaborn as sns
 from typing import Dict, List, Any
 import time
 from contextlib import contextmanager
+import psutil
+import gc
 
 def check_system_requirements():
     """Check if system has required dependencies and hardware"""
@@ -321,7 +323,79 @@ def optimize_dataloader_settings(dataset_size: int, batch_size: int) -> Dict[str
     }
     
     return settings
+def get_memory_usage():
+    """Get current memory usage for monitoring"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3  
+        reserved = torch.cuda.memory_reserved() / 1024**3   
+        return f"GPU: {allocated:.2f}GB allocated, {reserved:.2f}GB reserved"
+    else:
+        process = psutil.Process()
+        memory_gb = process.memory_info().rss / 1024**3
+        return f"CPU: {memory_gb:.2f}GB"
+    
+def safe_memory_cleanup():
+    """Safely clean up memory without causing gradient detachment issues"""
+    # Force garbage collection
+    gc.collect()
+    
+    # Clear CUDA cache
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
+    # Clear any remaining gradients
+    torch.autograd.set_detect_anomaly(False)
 
+def check_memory_safety(model, batch_size, support_size, query_size, max_length=512):
+    """
+    Check if the current configuration is safe for memory usage
+    
+    Args:
+        model: The model to check
+        batch_size: Training batch size
+        support_size: Support set size
+        query_size: Query set size
+        max_length: Maximum sequence length
+        
+    Returns:
+        dict: Memory safety information
+    """
+    # Get model parameter count
+    total_params = sum(p.numel() for p in model.parameters())
+    model_memory_gb = total_params * 4 / 1e9  # float32
+    
+    # Estimate memory usage
+    total_samples = support_size + query_size
+    memory_estimates = estimate_memory_usage(
+        dataset_size=total_samples,
+        max_length=max_length,
+        batch_size=batch_size
+    )
+    
+    # Get current GPU memory
+    gpu_info = get_gpu_memory_info()
+    
+    safety_info = {
+        'model_memory_gb': model_memory_gb,
+        'estimated_batch_memory_gb': memory_estimates['batch_memory_gb'],
+        'total_estimated_memory_gb': model_memory_gb + memory_estimates['batch_memory_gb'],
+        'gpu_info': gpu_info,
+        'safe': True,
+        'warnings': []
+    }
+    
+    if isinstance(gpu_info, dict):
+        available_memory = gpu_info['free_gb']
+        required_memory = safety_info['total_estimated_memory_gb']
+        
+        if required_memory > available_memory * 0.8:  # 80% safety margin
+            safety_info['safe'] = False
+            safety_info['warnings'].append(f"Estimated memory ({required_memory:.2f}GB) exceeds 80% of available GPU memory ({available_memory:.2f}GB)")
+        
+        if required_memory > available_memory:
+            safety_info['warnings'].append(f"CRITICAL: Estimated memory ({required_memory:.2f}GB) exceeds available GPU memory ({available_memory:.2f}GB)")
+    
+    return safety_info
 
 if __name__ == "__main__":
     print("Protein MAML Utils")
