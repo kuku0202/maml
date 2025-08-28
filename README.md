@@ -48,10 +48,26 @@ The  model from https://huggingface.co/yuesu4/Protein_Mutation_ProtBert_MAML sho
 Run the full pipeline on all datasets:
 ```bash
 python main.py --initial_task preprocess_data/combined_ddG_all.csv 
-    --meta_learning_tasks preprocess_data/binding_affinity_train.csv            preprocess_data/ddG/*train.csv preprocess_data/enrichment_score/*train.csv preprocess_data/fireprot_ddG/*train.csv preprocess_data/fireprot_dTm/*train.csv 
-    --test_tasks preprocess_data/binding_affinity/*test.csv preprocess_data/ddG/*test.csv preprocess_data/enrichment_score/*test.csv preprocess_data/fireprot_ddG/*test.csv preprocess_data/fireprot_dTm/*test.csv 
+    --meta_learning_tasks preprocess_data/binding_affinity_train.csv preprocess_data/fireprot_dTm_train.csv preprocess_data/soluprotmut_solubility_train.csv 
+    --test_tasks preprocess_data/binding_affinity_test.csv preprocess_data/fireprot_dTm_test.csv preprocess_data/soluprotmut_solubility_test.csv
+    --finetune_train_tasks preprocess_data/binding_affinity_train.csv preprocess_data/fireprot_dTm_train.csv preprocess_data/soluprotmut_solubility_train.csv 
     --run_maml 
-    --run_finetune 
     --maml_epochs 50 
-    --finetune_epochs 5 
-    --save_dir ./results_v3
+    --finetune_epochs 10
+    --save_dir ./results
+```
+
+If you have downloaded the pretrained model from huggingface, you can skip the pretraining steps by adding:
+```bash
+python main.py --skip_pretrain --pretrained_model_path your_path_to_store_model_path
+......
+```
+
+If you do not want to include target training part as tasks, there is an systematic approach to evaluate every task rather than run it one by one:
+```bash
+  python main.py --initial_task preprocess_data/combined_ddG_all.csv 
+    --test_tasks preprocess_data/binding_affinity_test.csv preprocess_data/fireprot_dTm_test.csv preprocess_data/soluprotmut_solubility_test.csv 
+    --maml_epochs 50 
+    --finetune_epochs 10 
+    --save_dir ./results
+```

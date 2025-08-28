@@ -571,9 +571,9 @@ def main():
     parser.add_argument('--meta_learning_tasks', type=str, nargs='*', default=[],
                        help='Paths to CSV files for meta-learning tasks')
     parser.add_argument('--test_tasks', type=str, nargs='*', default=[],
-                       help='Paths to CSV files for testing (optional)')
+                       help='Paths to CSV files for testing')
     parser.add_argument('--finetune_train_tasks', type=str, nargs='*', default=[],
-                       help='Paths to CSV files for training (optional)')
+                       help='Paths to CSV files for training')
     parser.add_argument('--model_name', type=str, default='prot_bert',
                        choices=['bert-base-uncased', 'prot_bert', 'esm2'],
                        help='Model to use (default: prot_bert)')
@@ -585,8 +585,6 @@ def main():
                        help='Path to pretrained model file')
     parser.add_argument('--run_maml', action='store_true', default=False,
                        help='Run MAML meta-learning (requires meta_learning_tasks)')
-    parser.add_argument('--run_finetune', action='store_true', default=False,
-                       help='Run finetuning comparison')
     parser.add_argument('--unseen_task_comparison', action='store_true', default=False,
                        help='Run unseen task comparison: finetuning vs MAML for each dataset')
     parser.add_argument('--use_wandb', action='store_true', default=False,
@@ -625,7 +623,6 @@ def main():
     print(f"Device: {DEVICE}")
     print(f"Skip pretrain: {args.skip_pretrain}")
     print(f"Run MAML: {args.run_maml}")
-    print(f"Run finetune: {args.run_finetune}")
     
     os.makedirs(args.save_dir, exist_ok=True)
     print(f"\nInitializing tokenizer for {args.model_name}...")
