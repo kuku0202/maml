@@ -1,5 +1,9 @@
 # Meta-Learning on Protein Mutation Sequence
 
+<div align="center">
+  <img src="maml_icon.png" alt="MAML Icon" width="300"/>
+</div>
+
 Welcome to the Meta-learning for Protein Mutate Property Difference Prediction repository! This repository corresponds to the meta-learning approach on Protein Mutation property predict project. 
 
 ## Getting Started
