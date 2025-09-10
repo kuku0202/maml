@@ -1,10 +1,17 @@
 # Meta-Learning on Protein Mutation Sequence
 
-<div align="center">
-  <img src="maml_icon.png" alt="MAML Icon" width="300"/>
-</div>
 
-Welcome to the Meta-learning for Protein Mutate Property Difference Prediction repository! This repository corresponds to the meta-learning approach on Protein Mutation property predict project. 
+
+<table>
+<tr>
+<td align="left" width="60%">
+Welcome to the Meta-learning for Protein Mutate Property Difference Prediction repository! This repository corresponds to the meta-learning approach on Protein Mutation property predict project.
+</td>
+<td align="right" width="40%">
+<img src="maml_icon.png" alt="MAML Icon" width="300"/>
+</td>
+</tr>
+</table>
 
 ## Getting Started
 
@@ -14,7 +21,7 @@ Welcome to the Meta-learning for Protein Mutate Property Difference Prediction r
    git clone https://github.com/kuku0202/maml.git
    cd maml
   
-2. ** Create virtual environment to run this project:**
+2. Create virtual environment to run this project:
     ```bash
     conda create -n maml python=3.9
     conda activate maml
@@ -24,8 +31,6 @@ Welcome to the Meta-learning for Protein Mutate Property Difference Prediction r
 Ensure you have Python and pip installed. Then, install the necessary packages:
 
     pip install -r requirements.txt
-    mkdir -p saved_models
-    cd saved_models
 
 
 4. **Download the model:**
@@ -39,7 +44,7 @@ To download the model, either:
   ```bash
   from huggingface_hub import snapshot_download
 
-  snapshot_download(repo_id="yuesu4/Protein_Mutation_ProtBert_MAML", local_dir="./saved_models/")
+  snapshot_download(repo_id="yuesu4/Protein_Mutation_ProtBert_MAML", local_dir="./")
   ```
 Note: Make sure to install huggingface_hub if using option 2:
   ```bash

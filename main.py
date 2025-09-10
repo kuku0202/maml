@@ -28,12 +28,6 @@ def set_seeds(seed=42):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-def cleanup_memory():
-    """Clean up GPU memory"""
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-
 def get_optimal_settings():
     """Auto-detect optimal training settings based on GPU(s)"""
     if not torch.cuda.is_available():
@@ -74,7 +68,7 @@ def fast_pretrain(model, dataset, epochs=10, freeze_bert=True, use_scheduler=Tru
         
         trainable_params = sum(p.numel() for p in model.predictor.parameters())
         total_params = sum(p.numel() for p in model.parameters())
-        print(f"   Training {trainable_params:,} / {total_params:,} parameters ({trainable_params/total_params*100:.1f}%)")
+        print(f"Training {trainable_params:,} / {total_params:,} parameters ({trainable_params/total_params*100:.1f}%)")
     
     train_loader = DataLoader(
         dataset,
@@ -105,13 +99,6 @@ def fast_pretrain(model, dataset, epochs=10, freeze_bert=True, use_scheduler=Tru
         )
     
     scaler = GradScaler() if settings['use_mixed_precision'] else None
-    
-    print(f" Training setup:")
-    print(f"   Epochs: {epochs}")
-    print(f"   Batch size: {settings['batch_size']}")
-    print(f"   Steps per epoch: {len(train_loader)}")
-    print(f"   Mixed precision: {settings['use_mixed_precision']}")
-    print(f"   Learning rate: {max_lr}")
     
     model.train()
     losses = []
@@ -174,15 +161,10 @@ def fast_pretrain(model, dataset, epochs=10, freeze_bert=True, use_scheduler=Tru
     
     return model, losses
 
-def finetune_model(base_model, dataset, epochs=20, freeze_bert=False, use_scheduler=True, use_wandb=False):
+def finetune_model(base_model, dataset, epochs=20, freeze_bert=False, use_scheduler=True):
     """
     Finetune a model on a specific dataset
     """
-    print(f"\n FINETUNING MODEL")
-    print(f"Target column: {dataset.target_col}")
-    print(f"Dataset size: {len(dataset)} samples")
-    
-    # Create a copy of the model to avoid modifying the original
     model = copy.deepcopy(base_model)
     
     settings = get_optimal_settings()
@@ -196,7 +178,7 @@ def finetune_model(base_model, dataset, epochs=20, freeze_bert=False, use_schedu
     
     train_loader = DataLoader(
         dataset,
-        batch_size=settings['batch_size'] // 2,  # Smaller batch for finetuning
+        batch_size=settings['batch_size'] // 2,
         shuffle=True,
         num_workers=settings['num_workers'],
         pin_memory=settings['pin_memory'],
@@ -224,12 +206,6 @@ def finetune_model(base_model, dataset, epochs=20, freeze_bert=False, use_schedu
         )
     
     scaler = GradScaler() if settings['use_mixed_precision'] else None
-    
-    print(f" Finetuning setup:")
-    print(f" Epochs: {epochs}")
-    print(f" Batch size: {settings['batch_size'] // 2}")
-    print(f" Learning rate: {max_lr}")
-    print(f" Freeze BERT: {freeze_bert}")
     
     model.train()
     losses = []
@@ -283,17 +259,6 @@ def finetune_model(base_model, dataset, epochs=20, freeze_bert=False, use_schedu
         losses.append(avg_loss)
         
         print(f"Finetune Epoch {epoch+1}: Loss={avg_loss:.4f}")
-        
-        # Log to wandb if enabled
-        if use_wandb:
-            try:
-                import wandb
-                wandb.log({
-                    "finetune/epoch": epoch + 1,
-                    "finetune/loss": avg_loss
-                })
-            except ImportError:
-                pass
     return model, losses
 
 def validate_datasets(file_paths):
@@ -328,8 +293,6 @@ def quick_evaluate_model(model, dataset, batch_size=16):
             targets = batch['target'].to(DEVICE, non_blocking=True)
             
             predictions = model(input_ids, attention_mask)
-            
-            # Fix dimension mismatch
             predictions_flat = predictions.squeeze()
             if predictions_flat.dim() == 0:
                 predictions_flat = predictions_flat.unsqueeze(0)
@@ -345,7 +308,7 @@ def quick_evaluate_model(model, dataset, batch_size=16):
         'mse': avg_loss
     }
 
-def compare_all_approaches(pretrained_model, test_tasks, train_tasks, finetune_epochs=20, freeze_bert_finetune=True, maml_model=None, support_size=32, query_size=32, use_wandb=False):
+def compare_all_approaches(pretrained_model, test_tasks, train_tasks, finetune_epochs=20, freeze_bert_finetune=True, maml_model=None, support_size=32, query_size=32):
     """Compare pretrained vs finetuned vs MAML approaches"""
     print("\n" + "="*70)
     print("COMPARING ALL APPROACHES ON TEST TASKS")
@@ -365,7 +328,6 @@ def compare_all_approaches(pretrained_model, test_tasks, train_tasks, finetune_e
             train_task['dataset'], 
             epochs=finetune_epochs,
             freeze_bert=freeze_bert_finetune,
-            use_wandb=use_wandb
         )
         finetune_time = time.time() - finetune_start
         finetuned_metrics = quick_evaluate_model(finetuned_model, task['dataset'])
@@ -382,7 +344,6 @@ def compare_all_approaches(pretrained_model, test_tasks, train_tasks, finetune_e
         }
         if maml_model:
             results[task['name']]['maml'] = maml_metrics
-            
         pretrain_to_finetune = ((pretrained_metrics['mse'] - finetuned_metrics['mse']) / pretrained_metrics['mse']) * 100
         print(f"Finetuning improvement: {pretrain_to_finetune:.1f}%")
         if maml_model:
@@ -428,13 +389,9 @@ def save_all_results(results, save_dir='./results'):
         json.dump(serializable_results, f, indent=2)
     print(f"All results saved to {save_dir}")
 
-def unseen_task_comparison(pretrained_model, datasets, save_dir='./results', finetune_epochs=20, maml_epochs=30, support_size=16, query_size=16, use_wandb=False):
+def unseen_task_comparison(pretrained_model, datasets, save_dir='./results', finetune_epochs=20, maml_epochs=30, support_size=16, query_size=16):
     """
     Systematic comparison: For each dataset, compare finetuning vs MAML to see if MAML is better on unseen datasets
-    Args:
-        pretrained_model: The pretrained model
-        datasets: List of dataset dictionaries with 'name', 'train_dataset', 'test_dataset', 'info'
-        save_dir: Directory to save results
     """
     print("\n" + "="*70)
     print("SYSTEMATIC COMPARISON: FINETUNING vs MAML")
@@ -459,19 +416,13 @@ def unseen_task_comparison(pretrained_model, datasets, save_dir='./results', fin
             pretrained_model, 
             target_dataset['train_dataset'],
             epochs=finetune_epochs,
-            freeze_bert=False,
-            use_wandb=use_wandb
+            freeze_bert=False
         )
         total_finetune_time = time.time() - finetune_start
         finetuned_metrics = quick_evaluate_model(finetuned_model, target_dataset['test_dataset'])
         print(f"   Finetuning completed:")
-        print(f"   Training time: {total_finetune_time:.2f}s")
-        print(f"   Training dataset size: {len(target_dataset['train_dataset'])}")
-        print(f"   Test MSE: {finetuned_metrics['mse']:.4f}")
-        print(f"   MAML training on OTHER datasets")
-        print(f"   Training on: {[d['name'] for d in other_datasets]}")
-        print(f"   Testing on:  {target_dataset['name']}_test.csv")
         
+        # 2. MAML - Train on the OTHER datasets part
         maml_start = time.time()
         maml = MAML(
             model=copy.deepcopy(pretrained_model),
@@ -509,21 +460,13 @@ def unseen_task_comparison(pretrained_model, datasets, save_dir='./results', fin
             support_size=support_size,
             query_size=query_size
         )
-        print(f"MAML completed:")
-        print(f"Training time: {total_maml_time:.2f}s")
-        print(f"Training dataset size: {sum(len(d['train_dataset']) + len(d['test_dataset']) for d in other_datasets)} ({[d['name'] for d in other_datasets]})")
-        for dataset in other_datasets:
-            total_size = len(dataset['train_dataset']) + len(dataset['test_dataset'])
-            print(f"{dataset['name']}: {total_size} samples")
-        print(f"Test MSE: {maml_metrics['mse']:.4f}")
-        
         results[target_dataset['name']] = {
             'finetuning': {
                 'mse': float(finetuned_metrics['mse']),
                 'training_time': float(total_finetune_time),
                 'training_dataset_size': len(target_dataset['train_dataset']),
                 'finetune_epochs': finetune_epochs,
-                'training_dataset': target_dataset['name']  # Same dataset
+                'training_dataset': target_dataset['name'] 
             },
             'maml': {
                 'mse': float(maml_metrics['mse']),
@@ -587,10 +530,6 @@ def main():
                        help='Run MAML meta-learning (requires meta_learning_tasks)')
     parser.add_argument('--unseen_task_comparison', action='store_true', default=False,
                        help='Run unseen task comparison: finetuning vs MAML for each dataset')
-    parser.add_argument('--use_wandb', action='store_true', default=False,
-                       help='Use Weights & Biases for experiment tracking')
-    parser.add_argument('--wandb_project', type=str, default='protein-maml-comparison',
-                       help='Weights & Biases project name')
     parser.add_argument('--pretrain_epochs', type=int, default=10,
                        help='Number of pretraining epochs')
     parser.add_argument('--finetune_epochs', type=int, default=5,
@@ -652,7 +591,7 @@ def main():
             freeze_bert=args.freeze_bert,
             use_scheduler=not args.no_scheduler
         )
-        torch.save(pretrained_model.state_dict(), os.path.join(args.save_dir, "lightning_pretrained_model.pt"))
+        torch.save(pretrained_model.state_dict(), os.path.join(args.save_dir, "pretraining_model.pt"))
         print("Pretrained model saved!")
          
     print("="*50)
@@ -665,10 +604,6 @@ def main():
         meta_tasks = data_loader.load_task_datasets(args.meta_learning_tasks)
         
         if meta_tasks:
-            print(f"\nLoaded {len(meta_tasks)} meta-learning tasks:")
-            for task in meta_tasks:
-                info = task['info']
-                print(f"  - {task['name']}: {info['size']} samples, target='{info['target_col']}'")
             maml = MAML(
                 model=copy.deepcopy(pretrained_model),
                 inner_lr=args.inner_lr,
@@ -677,7 +612,6 @@ def main():
                 num_adaptation_steps=args.adaptation_steps
             )
             try:
-                cleanup_memory()
                 meta_start_time = time.time()
                 maml_results = maml.meta_train(
                     train_tasks=meta_tasks,
@@ -711,19 +645,13 @@ def main():
         else:
             print("No valid meta-learning tasks found!")    
 
-    if args.test_tasks:
+    if args.test_tasks and not args.unseen_task_comparison:
         print("PHASE 3: EVALUATION")
         data_loader = ProteinDataLoader(tokenizer, args.max_length)
         test_tasks = data_loader.load_task_datasets(args.test_tasks)
         finetune_train_tasks = data_loader.load_task_datasets(args.finetune_train_tasks)
         
         if test_tasks:
-            print(f"\nLoaded {len(test_tasks)} test tasks:")
-            for task in test_tasks:
-                info = task['info']
-                print(f"  - {task['name']}: {info['size']} samples")
-            
-            # Compare all approaches
             all_results = compare_all_approaches(
                 pretrained_model, 
                 test_tasks,
